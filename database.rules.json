@@ -1,0 +1,15 @@
+{
+  "rules": {
+    ".read":  "auth != null && (auth.token.email === 'first.person@example.com' || auth.token.email === 'second.person@example.com')",
+    ".write": "auth != null && (auth.token.email === 'first.person@example.com' || auth.token.email === 'second.person@example.com')",
+
+    "balance": {
+      ".validate": "newData.isNumber()"
+    },
+    "history": {
+      "$entry": {
+        ".validate": "newData.hasChildren(['kind', 'delta', 'at'])"
+      }
+    }
+  }
+}

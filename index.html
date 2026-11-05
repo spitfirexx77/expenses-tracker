@@ -1,0 +1,815 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1E4636">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Balance">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>Shared balance</title>
+
+<!-- =====================================================================
+     STYLE
+     Colors are defined once at the top (:root) so they are easy to change.
+     ===================================================================== -->
+<style>
+:root{
+  /* light mode colors */
+  --bg:#F3F5F0; --surface:#FFFFFF; --ink:#18221D; --muted:#5D6A63; --line:#E2E6DF;
+  --panel:#1E4636; --panel-ink:#EEF4E8; --panel-muted:rgba(238,244,232,.72); --panel-line:rgba(238,244,232,.32);
+  --in:#1D7A4A; --out:#B3412D; --focus:#E0B84F; --scrim:rgba(10,20,15,.45);
+  --ok:#86DBA6; --busy:#E8C460; --off:#F08E79;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  .row.unsent .meta{color:#E8C460}
+  :root{
+    /* dark mode colors */
+    --bg:#0E1411; --surface:#121A16; --ink:#E5ECE6; --muted:#93A199; --line:#25302A;
+    --panel:#1B4433; --panel-ink:#EAF2E4; --panel-muted:rgba(234,242,228,.7); --panel-line:rgba(234,242,228,.28);
+    --in:#62C892; --out:#EE8670; --scrim:rgba(0,0,0,.6);
+    color-scheme:dark;
+  }
+}
+*,*::before,*::after{box-sizing:inherit}
+html{height:100%;background:var(--surface)}
+body{
+  height:100%;margin:0;background:var(--surface);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Roboto","Segoe UI",system-ui,sans-serif;
+  -webkit-tap-highlight-color:transparent;overscroll-behavior:none;-webkit-font-smoothing:antialiased;
+}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--panel)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+[hidden]{display:none !important}
+
+.screen{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto;background:var(--surface)}
+
+/* ---------- top panel ---------- */
+.panel{background:var(--panel);color:var(--panel-ink);padding:14px 22px 40px;flex:none}
+.bar{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:40px}
+.title{background:none;border:0;padding:6px 0;font-weight:600;font-size:17px;text-align:left;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%}
+.title::after{content:"";display:inline-block;width:6px;height:6px;margin-left:8px;vertical-align:3px;
+  border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.7}
+.status{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--panel-muted);white-space:nowrap}
+.status i{width:8px;height:8px;border-radius:50%;background:var(--panel-muted);flex:none}
+.status[data-k="ok"] i{background:var(--ok)}
+.status[data-k="busy"] i{background:var(--busy)}
+.status[data-k="off"] i{background:var(--off)}
+.status[data-k="wait"] i{animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+.total{
+  --len:9;
+  display:block;width:100%;background:none;border:0;padding:0;margin:30px 0 8px;text-align:left;
+  font-weight:700;font-size:calc(min(17vw, 88px) * min(1, 10 / var(--len)));
+  line-height:1.02;letter-spacing:-.03em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
+}
+.total.neg{color:#FFC2B4}
+.last{margin:0;font-size:14px;color:var(--panel-muted);min-height:1.4em}
+
+.actions{display:grid;grid-template-columns:1fr 1fr 54px;gap:10px;margin-top:26px}
+.panel .btn.tool{padding:0;display:grid;place-items:center;background:transparent;color:var(--panel-ink);box-shadow:inset 0 0 0 1.5px var(--panel-line)}
+.btn.tool svg{width:22px;height:22px}
+.sendbar{display:grid;grid-template-columns:1fr;gap:10px;margin-top:10px}
+.sendbar.two{grid-template-columns:1fr 2fr}
+.panel .btn.send{background:transparent;color:var(--panel-muted);box-shadow:inset 0 0 0 1.5px var(--panel-line);min-height:48px;font-size:16px}
+.panel .btn.send:disabled{opacity:1}
+.panel .btn.send.ready{background:var(--focus);color:#1F1A08;box-shadow:none;font-size:17px}
+.panel .btn.discard{background:transparent;color:var(--panel-ink);box-shadow:inset 0 0 0 1.5px var(--panel-line);min-height:48px;font-size:16px}
+.row.unsent .what,.row.unsent .amt{opacity:.8}
+.row.unsent .meta{color:#9A7414}
+.row.undoing .what,.row.undoing .amt{text-decoration:line-through;opacity:.55}
+.btn{min-height:54px;border-radius:15px;border:0;font-weight:600;font-size:17px;padding:0 16px;transition:transform .08s ease, opacity .15s}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.4;cursor:default;transform:none}
+.panel .btn.in{background:var(--panel-ink);color:var(--panel)}
+.panel .btn.out{background:transparent;color:var(--panel-ink);box-shadow:inset 0 0 0 1.5px var(--panel-line)}
+.btn .sign{font-size:20px;margin-right:6px}
+
+/* ---------- history ---------- */
+.history{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;background:var(--surface);
+  margin-top:-22px;border-radius:22px 22px 0 0;padding:22px 22px 28px;position:relative}
+.history h2{margin:0 0 6px;font-size:15px;font-weight:600;color:var(--muted)}
+.list{list-style:none;margin:0;padding:0}
+.row{display:grid;grid-template-columns:1fr auto;column-gap:16px;row-gap:2px;width:100%;background:none;border:0;
+  padding:14px 0;text-align:left;border-bottom:1px solid var(--line)}
+.list li:last-child .row{border-bottom:0}
+.what{font-size:16px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.amt{font-size:16px;font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.amt.pos{color:var(--in)} .amt.neg{color:var(--out)} .amt.set{color:var(--muted)}
+.meta{grid-column:1 / -1;font-size:13px;color:var(--muted)}
+.empty{color:var(--muted);font-size:15px;line-height:1.5;margin:18px 0 0;max-width:36ch}
+
+/* ---------- login and setup screens ---------- */
+.gate{height:100%;background:var(--panel);color:var(--panel-ink);display:flex;align-items:center;justify-content:center;padding:24px}
+.gate-card{width:100%;max-width:380px}
+.gate h1{font-size:30px;letter-spacing:-.02em;margin:0 0 6px}
+.gate p{color:var(--panel-muted);line-height:1.5;margin:0 0 24px}
+.gate .txt{background:rgba(255,255,255,.08);border-color:var(--panel-line);color:var(--panel-ink)}
+.gate .txt::placeholder{color:var(--panel-muted)}
+.gate .lbl{color:var(--panel-muted)}
+.gate .btn{width:100%;background:var(--panel-ink);color:var(--panel);margin-top:6px}
+.gate .err{color:#FFC2B4;font-size:14px;min-height:1.4em;margin:10px 0 0}
+.gate code{background:rgba(255,255,255,.12);padding:2px 6px;border-radius:6px}
+
+/* ---------- bottom sheet ---------- */
+.scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;transition:opacity .2s;z-index:20}
+.scrim.open{opacity:1}
+.sheet{position:fixed;left:0;right:0;bottom:var(--kb,0px);margin-inline:auto;width:100%;max-width:560px;z-index:30;
+  background:var(--surface);color:var(--ink);border-radius:24px 24px 0 0;
+  padding:10px 22px calc(18px + env(safe-area-inset-bottom,0px));
+  transform:translateY(105%);transition:transform .24s cubic-bezier(.2,.8,.2,1);box-shadow:0 -12px 40px rgba(0,0,0,.18)}
+.sheet.open{transform:translateY(0)}
+.grab{width:38px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 14px}
+.sheet h3{margin:0 0 14px;font-size:18px;font-weight:600}
+.amount-in{width:100%;border:0;border-bottom:2px solid var(--line);background:transparent;color:var(--ink);
+  font:inherit;font-weight:700;font-size:44px;letter-spacing:-.02em;padding:4px 0 8px;border-radius:0;font-variant-numeric:tabular-nums}
+.amount-in:focus{outline:none;border-bottom-color:var(--panel)}
+.amount-in.expr{font-size:30px}
+
+/* ---------- calculator ---------- */
+.calc{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 10px}
+.calc button{min-height:50px;border-radius:12px;border:0;background:var(--bg);color:var(--ink);
+  font-size:20px;font-weight:600;box-shadow:inset 0 0 0 1px var(--line);font-variant-numeric:tabular-nums}
+.calc button:active{transform:scale(.96)}
+.calc .wide{grid-column:1 / -1;font-size:16px}
+.calc .wide span{color:var(--muted);font-weight:500;margin-left:6px}
+.calc-result{margin:4px 0 12px;min-height:1.35em;color:var(--muted);font-size:15px;font-variant-numeric:tabular-nums}
+.fld{display:block;margin-bottom:14px}
+.lbl{display:block;font-size:13px;color:var(--muted);margin-bottom:6px}
+.txt{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+.hint{font-size:14px;color:var(--muted);line-height:1.45;margin:0 0 14px}
+.sheet-actions{display:grid;grid-template-columns:1fr 1.6fr;gap:10px;margin-top:8px}
+.sheet-actions.single{grid-template-columns:1fr}
+.btn.primary{background:var(--panel);color:var(--panel-ink)}
+.btn.ghost{background:var(--bg);color:var(--ink)}
+.btn.danger{width:100%;background:transparent;color:var(--out);box-shadow:inset 0 0 0 1.5px var(--line);margin-bottom:10px}
+.detail-amt{font-weight:700;font-size:40px;letter-spacing:-.02em;margin:0 0 6px;font-variant-numeric:tabular-nums}
+.detail-amt.pos{color:var(--in)} .detail-amt.neg{color:var(--out)}
+.detail-meta{color:var(--muted);font-size:15px;line-height:1.5;margin:0 0 18px}
+
+.toast{position:fixed;left:16px;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));margin-inline:auto;max-width:440px;
+  background:var(--ink);color:var(--surface);padding:13px 16px;border-radius:14px;font-size:15px;z-index:40;
+  opacity:0;transform:translateY(12px);transition:opacity .2s, transform .2s;pointer-events:none}
+.toast.show{opacity:1;transform:none}
+
+@media (prefers-reduced-motion: reduce){
+  .sheet,.scrim,.toast,.btn{transition:none}
+  .status[data-k="wait"] i{animation:none}
+}
+</style>
+</head>
+<body>
+
+<!-- =====================================================================
+     SCREEN 1: shown when config.js still has placeholder values
+     ===================================================================== -->
+<div class="gate" id="setupScreen" hidden>
+  <div class="gate-card">
+    <h1>Almost there</h1>
+    <p>Open <code>config.js</code>, paste your Firebase settings, and upload it again. The README explains where to find each value.</p>
+  </div>
+</div>
+
+<!-- =====================================================================
+     SCREEN 2: sign in
+     ===================================================================== -->
+<div class="gate" id="loginScreen" hidden>
+  <form class="gate-card" id="loginForm" novalidate>
+    <h1 id="loginTitle">Shared balance</h1>
+    <p>Sign in with the account you created in Firebase.</p>
+    <label class="fld"><span class="lbl">Email</span>
+      <input class="txt" id="loginEmail" type="email" autocomplete="username" inputmode="email" autocapitalize="off" required></label>
+    <label class="fld"><span class="lbl">Password</span>
+      <input class="txt" id="loginPassword" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit" id="loginBtn">Sign in</button>
+    <p class="err" id="loginError" role="alert"></p>
+  </form>
+</div>
+
+<!-- =====================================================================
+     SCREEN 3: the app
+     ===================================================================== -->
+<div class="screen" id="mainScreen" hidden>
+  <header class="panel">
+    <div class="bar">
+      <button type="button" class="title" id="title" aria-label="Settings">Shared balance</button>
+      <span class="status" id="status" data-k="wait" role="status"><i></i><span>Connecting…</span></span>
+    </div>
+    <button type="button" class="total" id="total" aria-label="Set the balance">—</button>
+    <p class="last" id="last"></p>
+    <div class="actions">
+      <button type="button" class="btn out" id="btnOut"><span class="sign" aria-hidden="true">−</span>Take out</button>
+      <button type="button" class="btn in" id="btnIn"><span class="sign" aria-hidden="true">+</span>Put in</button>
+      <button type="button" class="btn tool" id="btnCalc" aria-label="Calculator">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true">
+          <rect x="4.5" y="2.5" width="15" height="19" rx="3"/><path d="M8 7h8"/>
+          <path d="M8.5 12h0M12 12h0M15.5 12h0M8.5 16h0M12 16h0M15.5 16h0" stroke-width="2.6"/>
+        </svg>
+      </button>
+    </div>
+    <div class="sendbar" id="sendbar">
+      <button type="button" class="btn discard" id="btnDiscard" hidden>Discard</button>
+      <button type="button" class="btn send" id="btnSend" disabled>All changes sent</button>
+    </div>
+  </header>
+  <main class="history">
+    <h2>History</h2>
+    <ul class="list" id="list"></ul>
+    <p class="empty" id="empty" hidden></p>
+  </main>
+</div>
+
+<!-- bottom sheet used for every popup -->
+<div class="scrim" id="scrim" hidden></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden>
+  <div class="grab" aria-hidden="true"></div>
+  <h3 id="sheetTitle"></h3>
+  <div id="sheetBody"></div>
+  <div class="sheet-actions" id="sheetActions">
+    <button type="button" class="btn ghost" id="sheetCancel">Cancel</button>
+    <button type="button" class="btn primary" id="sheetOk">Save</button>
+  </div>
+</section>
+<div class="toast" id="toast" role="alert"></div>
+
+<!-- your settings: edit config.js, not this file -->
+<script src="config.js"></script>
+
+<!-- =====================================================================
+     APP LOGIC
+     Changes are kept on this phone until you tap "Send to Firebase".
+     Data in Firebase Realtime Database:
+       /balance            the current amount, in cents (12450 = 124,50)
+       /history/<id>       one entry per change:
+                           { kind: "in" | "out" | "set", delta, value?, note, by, at }
+     ===================================================================== -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut }
+  from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
+import { getDatabase, ref, onValue, update, push, increment, serverTimestamp,
+         runTransaction, query, orderByKey, limitToLast, get }
+  from "https://www.gstatic.com/firebasejs/12.19.0/firebase-database.js";
+
+const $ = s => document.querySelector(s);
+const C = window.APP_CONFIG || {};
+
+/* ---------- 1. Check the config ---------- */
+const configMissing = !C.firebase || /PASTE_/.test(JSON.stringify(C.firebase)) || !C.firebase.databaseURL;
+if (configMissing){
+  $('#setupScreen').hidden = false;
+  throw new Error('config.js is not filled in yet');
+}
+
+/* ---------- 2. Formatting helpers ---------- */
+const appName = C.appName || 'Shared balance';
+const lang = C.locale || navigator.language || 'en';
+let fmt;
+try { fmt = new Intl.NumberFormat(lang, {style:'currency', currency: C.currency || 'EUR'}); }
+catch(e){ fmt = new Intl.NumberFormat(lang, {style:'currency', currency:'EUR'}); }
+const money  = c => fmt.format(c / 100);
+const signed = c => (c > 0 ? '+' : c < 0 ? '−' : '') + fmt.format(Math.abs(c) / 100);
+const rtf = new Intl.RelativeTimeFormat(lang, {numeric:'auto'});
+const decSep = (1.5).toLocaleString(lang).replace(/\d/g, '') || '.';
+
+function ago(ts){
+  if (!ts) return 'just now';
+  const s = Math.round((ts - Date.now()) / 1000), a = Math.abs(s);
+  if (a < 45) return 'just now';
+  if (a < 3600) return rtf.format(Math.round(s / 60), 'minute');
+  if (a < 86400) return rtf.format(Math.round(s / 3600), 'hour');
+  if (a < 86400 * 7) return rtf.format(Math.round(s / 86400), 'day');
+  return new Date(ts).toLocaleDateString(lang, {day:'numeric', month:'short'});
+}
+
+// Turns what was typed ("12,50", "12.50", "1.240") into cents.
+function parseAmount(str, allowNeg){
+  const raw = String(str || '');
+  const neg = allowNeg && /^\s*[-−]/.test(raw);
+  const s = raw.replace(/[^\d.,]/g, '');
+  if (!s || !/\d/.test(s)) return null;
+  const lc = Math.max(s.lastIndexOf(','), s.lastIndexOf('.'));
+  let intPart = s, frac = '';
+  if (lc >= 0 && s.length - lc - 1 <= 2){ intPart = s.slice(0, lc); frac = s.slice(lc + 1); }
+  intPart = intPart.replace(/[.,]/g, '');
+  if (intPart.length > 9) return null;
+  const cents = parseInt(intPart || '0', 10) * 100 + parseInt((frac + '00').slice(0, 2), 10);
+  if (!Number.isFinite(cents)) return null;
+  return neg ? -cents : cents;
+}
+
+// Calculator: works out "46,80 + 12 − 5" and returns cents (or null if it can't).
+// A trailing operator ("12 +") is ignored so the result shows while typing.
+function evalExpr(str){
+  const s = String(str || '').replace(/−/g, '-').trim();
+  if (!s) return null;
+  const parts = s.match(/[+-]|[^+-]+/g) || [];
+  let total = 0, sign = 1, sawNumber = false;
+  for (const p of parts){
+    if (p === '+') continue;
+    if (p === '-'){ sign = -sign; continue; }
+    if (!p.trim()) continue;
+    const c = parseAmount(p, false);
+    if (c === null) return null;
+    total += sign * c; sign = 1; sawNumber = true;
+  }
+  return sawNumber ? total : null;
+}
+const hasOperator = str => /\d\s*[+\-−]/.test(String(str || ''));
+
+// Cents as plain typed text, e.g. 2340 -> "23,40" (no currency sign).
+function plain(c){
+  const a = Math.abs(c), cents = a % 100;
+  return (c < 0 ? '−' : '') + Math.floor(a / 100) + (cents ? decSep + String(cents).padStart(2, '0') : '');
+}
+
+let toastTimer = null;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 4000);
+}
+
+/* ---------- 3. Firebase ---------- */
+const app  = initializeApp(C.firebase);
+const auth = getAuth(app);
+const db   = getDatabase(app);
+
+let serverBalance = null; // cents, as stored in Firebase (null until loaded)
+let balance = null;       // what the screen shows: Firebase + changes not sent yet
+let entries = [];         // history from Firebase, newest first
+let unsent = [];          // changes made on this phone, waiting for "Send"
+let connected = false;
+let sending = false;
+let denied = false;       // true if the database rules refuse this account
+let unsubs = [];
+let deviceName = '';
+let pendingKey = '';      // where unsent changes are kept on this phone
+
+$('#title').textContent = appName;
+$('#loginTitle').textContent = appName;
+document.title = appName;
+
+/* ---------- 4. Sign in / out ---------- */
+$('#loginForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const email = $('#loginEmail').value.trim();
+  const pw = $('#loginPassword').value;
+  const err = $('#loginError'); err.textContent = '';
+  if (!email || !pw){ err.textContent = 'Enter your email and password.'; return; }
+  $('#loginBtn').disabled = true; $('#loginBtn').textContent = 'Signing in…';
+  try {
+    await signInWithEmailAndPassword(auth, email, pw);
+  } catch(ex){
+    const code = ex && ex.code || '';
+    err.textContent =
+      code.includes('invalid-credential') || code.includes('wrong-password') || code.includes('user-not-found')
+        ? 'Email or password is wrong.'
+      : code.includes('too-many-requests') ? 'Too many attempts. Wait a few minutes and try again.'
+      : code.includes('network') ? 'No connection. Check your internet and try again.'
+      : code.includes('operation-not-allowed') ? 'Email sign-in is turned off in Firebase. See the README, step 3.'
+      : 'Sign-in failed (' + code + ').';
+  } finally {
+    $('#loginBtn').disabled = false; $('#loginBtn').textContent = 'Sign in';
+  }
+});
+
+onAuthStateChanged(auth, user => {
+  unsubs.forEach(u => u()); unsubs = [];
+  if (!user){
+    $('#mainScreen').hidden = true; $('#loginScreen').hidden = false;
+    return;
+  }
+  // Name shown in the history for changes made on this phone.
+  deviceName = localStorage.getItem('deviceName') || (user.email || 'Phone').split('@')[0];
+  pendingKey = 'unsent:' + user.uid;
+  try { unsent = JSON.parse(localStorage.getItem(pendingKey) || '[]'); } catch(e){ unsent = []; }
+  $('#loginScreen').hidden = true; $('#mainScreen').hidden = false;
+  serverBalance = null; entries = []; denied = false;
+  startSync();
+  render();
+});
+
+/* ---------- 5. Live sync (reading) ---------- */
+function startSync(){
+  unsubs.push(onValue(ref(db, '.info/connected'), s => { connected = s.val() === true; render(); }));
+
+  unsubs.push(onValue(ref(db, 'balance'), s => {
+    const v = s.val();
+    serverBalance = typeof v === 'number' ? v : 0;
+    render();
+  }, readError));
+
+  const hq = query(ref(db, 'history'), orderByKey(), limitToLast(C.historyLength || 100));
+  unsubs.push(onValue(hq, s => {
+    const list = [];
+    s.forEach(ch => { list.push(Object.assign({id: ch.key}, ch.val())); });
+    entries = list.reverse();
+    render();
+  }, readError));
+}
+
+function readError(e){ denied = true; render(); }
+
+/* ---------- 6. Changes on this phone (not sent yet) ---------- */
+// Put in, Take out, Set, Calculator and Undo only change this phone.
+// Nothing reaches Firebase until you tap "Send to Firebase".
+
+function saveUnsent(){ try { localStorage.setItem(pendingKey, JSON.stringify(unsent)); } catch(e){} }
+
+function queue(change){
+  change.id = push(ref(db, 'history')).key;   // id made on the phone, no network needed
+  change.by = deviceName;
+  change.made = Date.now();
+  unsent.push(change); saveUnsent(); render();
+  if (navigator.vibrate) navigator.vibrate(8);
+}
+function addChange(kind, cents, note){ queue({ kind, delta: kind === 'in' ? cents : -cents, note }); }
+function setTo(target, note){ queue({ kind:'set', value: target, note }); }
+function undoChange(e){
+  if (unsent.some(u => u.kind === 'undo' && u.targetId === e.id)) return;
+  queue({ kind:'undo', targetId: e.id, delta: -(Number(e.delta) || 0), note: 'Undo: ' + label(e) });
+}
+function removeUnsent(id){ unsent = unsent.filter(u => u.id !== id); saveUnsent(); render(); }
+
+// The number on screen = Firebase balance with the unsent changes applied on top.
+function project(){
+  if (serverBalance === null) return null;
+  let b = serverBalance;
+  for (const u of unsent) b = u.kind === 'set' ? u.value : b + (Number(u.delta) || 0);
+  return b;
+}
+
+/* ---------- 7. Send to Firebase ---------- */
+async function sendUnsent(){
+  if (sending || !unsent.length) return;
+  if (!connected){ toast('You’re offline. Send again when you’re back online. Your changes are kept on this phone.'); return; }
+  sending = true; render();
+  try {
+    let i = 0;
+    while (i < unsent.length){
+      const first = unsent[i];
+      if (first.kind === 'set'){
+        // Set to an exact amount: done as a transaction so the difference is recorded correctly.
+        let prev = 0;
+        const res = await runTransaction(ref(db, 'balance'), cur => { prev = typeof cur === 'number' ? cur : 0; return first.value; });
+        if (res.committed && first.value !== prev){
+          await update(ref(db), { ['history/' + first.id]: {
+            kind:'set', value: first.value, delta: first.value - prev, note: first.note || '', by: first.by, at: serverTimestamp() } });
+        }
+        removeUnsent(first.id);
+        continue;
+      }
+      // A run of adds, subtractions and undos goes in one atomic update.
+      const group = [];
+      while (i < unsent.length && unsent[i].kind !== 'set') group.push(unsent[i++]);
+      const updates = {};
+      let sum = 0;
+      for (const u of group){
+        if (u.kind === 'undo'){
+          const still = await get(ref(db, 'history/' + u.targetId));   // skip if already undone elsewhere
+          if (!still.exists()) continue;
+          updates['history/' + u.targetId] = null;
+        } else {
+          updates['history/' + u.id] = { kind: u.kind, delta: u.delta, note: u.note || '', by: u.by, at: serverTimestamp() };
+        }
+        sum += Number(u.delta) || 0;
+      }
+      // increment() is done by the server, so changes from two phones never overwrite each other.
+      if (sum) updates['balance'] = increment(sum);
+      if (Object.keys(updates).length) await update(ref(db), updates);
+      const sentIds = new Set(group.map(g => g.id));
+      unsent = unsent.filter(u => !sentIds.has(u.id)); saveUnsent();
+      i = 0;
+    }
+    toast('Sent to Firebase.');
+    if (navigator.vibrate) navigator.vibrate([10, 40, 10]);
+  } catch(e){
+    const code = String(e && (e.code || e.message) || '');
+    if (/permission/i.test(code)) toast('This account isn’t allowed to change the balance. Check the database rules (README, step 4).');
+    else toast('Sending failed. Your changes are still on this phone. Try again.');
+  } finally {
+    sending = false; render();
+  }
+}
+
+let discardArmed = false, discardTimer = null;
+function discardUnsent(){
+  const b = $('#btnDiscard');
+  if (!discardArmed){
+    discardArmed = true; b.textContent = 'Tap again';
+    clearTimeout(discardTimer);
+    discardTimer = setTimeout(() => { discardArmed = false; b.textContent = 'Discard'; }, 3000);
+    return;
+  }
+  discardArmed = false; clearTimeout(discardTimer); b.textContent = 'Discard';
+  unsent = []; saveUnsent(); render();
+  toast('Unsent changes discarded.');
+}
+
+/* ---------- 8. Drawing the screen ---------- */
+function setStatus(){
+  const el = $('#status'); let k, t;
+  if (denied){ k = 'off'; t = 'No access'; }
+  else if (serverBalance === null && !connected){ k = 'wait'; t = 'Connecting…'; }
+  else if (!connected){ k = 'off'; t = 'Offline'; }
+  else if (sending){ k = 'busy'; t = 'Sending…'; }
+  else if (unsent.length){ k = 'busy'; t = 'Not sent'; }
+  else { k = 'ok'; t = 'Synced'; }
+  el.dataset.k = k; el.querySelector('span').textContent = t;
+}
+
+function label(e){
+  if (e.note) return e.note;
+  return e.kind === 'set' ? 'Balance set' : e.kind === 'in' ? 'Put in' : 'Took out';
+}
+
+function historyRow(e, isUnsent, undoing){
+  const li = document.createElement('li');
+  const b = document.createElement('button'); b.type = 'button';
+  b.className = 'row' + (isUnsent ? ' unsent' : '') + (undoing ? ' undoing' : '');
+  const what = document.createElement('span'); what.className = 'what'; what.textContent = label(e);
+  const amt = document.createElement('span');
+  amt.className = 'amt ' + (e.kind === 'set' ? 'set' : ((e.delta || 0) >= 0 ? 'pos' : 'neg'));
+  amt.textContent = e.kind === 'set' ? '= ' + money(e.value || 0) : signed(e.delta || 0);
+  const meta = document.createElement('span'); meta.className = 'meta';
+  meta.textContent = isUnsent ? 'Not sent yet, tap to remove'
+                   : (e.by || 'Someone') + ', ' + ago(e.at) + (undoing ? ', undo not sent yet' : '');
+  b.append(what, amt, meta);
+  b.addEventListener('click', () => isUnsent ? openUnsent(e) : openEntry(e));
+  li.append(b);
+  return li;
+}
+
+function render(){
+  balance = project();
+  const tEl = $('#total');
+  const txt = balance === null ? '—' : money(balance);
+  tEl.textContent = txt;
+  tEl.style.setProperty('--len', Math.max(txt.length, 1));
+  tEl.classList.toggle('neg', balance !== null && balance < 0);
+
+  const last = $('#last');
+  const n = unsent.length;
+  if (n) last.textContent = n + (n === 1 ? ' change' : ' changes') + ' not sent yet';
+  else if (entries[0]) last.textContent = 'Last change: ' + (entries[0].by || 'Someone') + ', ' + ago(entries[0].at);
+  else last.textContent = balance === null ? '' : 'Tap the amount to set a starting balance';
+
+  // Send / Discard
+  const send = $('#btnSend'), discard = $('#btnDiscard');
+  send.disabled = !n || sending;
+  send.classList.toggle('ready', !!n);
+  send.textContent = sending ? 'Sending…' : n ? 'Send to Firebase (' + n + ')' : 'All changes sent';
+  discard.hidden = !n || sending;
+  $('#sendbar').classList.toggle('two', !discard.hidden);
+
+  // History: unsent changes first (newest on top), then Firebase history
+  const list = $('#list'); list.textContent = '';
+  const undoTargets = new Set(unsent.filter(u => u.kind === 'undo').map(u => u.targetId));
+  for (const u of unsent.slice().reverse()) list.append(historyRow(u, true, false));
+  for (const e of entries) list.append(historyRow(e, false, undoTargets.has(e.id)));
+
+  const empty = $('#empty');
+  if (denied){
+    empty.hidden = false;
+    empty.textContent = 'This account can’t read the balance. Check that its email is listed in the database rules (README, step 4).';
+  } else if (balance !== null && !entries.length && !n){
+    empty.hidden = false;
+    empty.textContent = 'No changes yet. Make a change, then tap Send to Firebase to share it with the other phone.';
+  } else empty.hidden = true;
+  setStatus();
+}
+setInterval(render, 30000); // keeps "5 minutes ago" up to date
+
+/* ---------- 9. Bottom sheet ---------- */
+const sheet = $('#sheet'), scrim = $('#scrim');
+let onOk = null, lastFocus = null, sheetGen = 0;
+
+function showSheet(heading, okLabel, opts = {}){
+  sheetGen++;
+  lastFocus = document.activeElement;
+  $('#sheetTitle').textContent = heading;
+  $('#sheetOk').textContent = okLabel;
+  $('#sheetOk').disabled = !!opts.disabled;
+  $('#sheetCancel').hidden = !!opts.single;
+  $('#sheetActions').classList.toggle('single', !!opts.single);
+  sheet.hidden = false; scrim.hidden = false;
+  if (opts.focus) opts.focus.focus({preventScroll:true});
+  requestAnimationFrame(() => { sheet.classList.add('open'); scrim.classList.add('open'); });
+}
+function closeSheet(){
+  const gen = ++sheetGen;
+  sheet.classList.remove('open'); scrim.classList.remove('open');
+  if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+  setTimeout(() => { if (gen === sheetGen){ sheet.hidden = true; scrim.hidden = true; $('#sheetBody').textContent = ''; } }, 240);
+  onOk = null;
+  if (lastFocus && lastFocus.focus) lastFocus.focus({preventScroll:true});
+}
+$('#sheetCancel').addEventListener('click', closeSheet);
+scrim.addEventListener('click', closeSheet);
+$('#sheetOk').addEventListener('click', () => { if (onOk) onOk(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !sheet.hidden) closeSheet(); });
+if (window.visualViewport){
+  // keeps the sheet above the on-screen keyboard
+  const vv = window.visualViewport;
+  const fit = () => sheet.style.setProperty('--kb', Math.max(0, window.innerHeight - vv.height - vv.offsetTop) + 'px');
+  vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit);
+}
+
+function field(labelText, input, hidden){
+  const f = document.createElement('label'); f.className = 'fld';
+  const s = document.createElement('span'); s.className = hidden ? 'sr' : 'lbl'; s.textContent = labelText;
+  f.append(s, input); return f;
+}
+
+/* Put in / Take out / Set */
+function openAmount(kind){
+  if (balance === null) return;
+  const cfg = { in:{h:'Put in', v:'Put in'}, out:{h:'Take out', v:'Take out'}, set:{h:'Set the balance', v:'Set to'} }[kind];
+  const body = $('#sheetBody'); body.textContent = '';
+  if (kind === 'set'){
+    const p = document.createElement('p'); p.className = 'hint';
+    p.textContent = 'Use this to correct the number. The difference is saved in the history.';
+    body.append(p);
+  }
+  const amt = document.createElement('input');
+  amt.className = 'amount-in'; amt.inputMode = 'decimal'; amt.autocomplete = 'off';
+  amt.placeholder = kind === 'set' ? money(balance) : '0' + decSep + '00';
+  const note = document.createElement('input');
+  note.className = 'txt'; note.maxLength = 80; note.autocomplete = 'off';
+  note.placeholder = kind === 'out' ? 'Groceries, rent, dinner…' : kind === 'in' ? 'Salary, refund, savings…' : 'Why it changed';
+  body.append(field('Amount', amt, true), field('Note (optional)', note));
+
+  const okBtn = $('#sheetOk');
+  const upd = () => {
+    const c = evalExpr(amt.value);
+    const valid = c !== null && (kind === 'set' || c > 0);
+    okBtn.disabled = !valid;
+    okBtn.textContent = valid ? cfg.v + ' ' + money(kind === 'set' ? c : Math.abs(c)) : cfg.v;
+    amt.classList.toggle('expr', hasOperator(amt.value));
+  };
+  amt.addEventListener('input', upd);
+  const enter = e => { if (e.key === 'Enter' && !okBtn.disabled){ e.preventDefault(); onOk(); } };
+  amt.addEventListener('keydown', enter); note.addEventListener('keydown', enter);
+
+  onOk = () => {
+    const cents = evalExpr(amt.value);
+    if (cents === null || (kind !== 'set' && cents <= 0)) return;
+    const n = note.value.trim().slice(0, 80);
+    closeSheet();
+    if (kind === 'set') setTo(cents, n); else addChange(kind, cents, n);
+  };
+  showSheet(cfg.h, cfg.v, {disabled:true, focus:amt});
+}
+
+/* Tap a history entry */
+function openEntry(e){
+  const body = $('#sheetBody'); body.textContent = '';
+  const big = document.createElement('p');
+  big.className = 'detail-amt ' + (e.kind === 'set' ? '' : (e.delta >= 0 ? 'pos' : 'neg'));
+  big.textContent = e.kind === 'set' ? money(e.value || 0) : signed(e.delta || 0);
+  const meta = document.createElement('p'); meta.className = 'detail-meta';
+  const when = e.at ? new Date(e.at).toLocaleString(lang, {weekday:'short', day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : 'just now';
+  meta.textContent = (e.by || 'Someone') + ', ' + when;
+  if (e.kind === 'set'){ meta.append(document.createElement('br'), 'Changed the balance by ' + signed(e.delta || 0)); }
+  body.append(big, meta);
+
+  const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn danger';
+  undo.textContent = 'Undo this change';
+  let armed = false;
+  undo.addEventListener('click', () => {
+    if (!armed){ armed = true; undo.textContent = 'Tap again to undo ' + signed(e.delta || 0); return; }
+    closeSheet(); undoChange(e);
+  });
+  body.append(undo);
+  onOk = closeSheet;
+  showSheet(label(e), 'Done', {single:true});
+}
+
+/* Tap a change that hasn't been sent yet */
+function openUnsent(u){
+  const body = $('#sheetBody'); body.textContent = '';
+  const big = document.createElement('p');
+  big.className = 'detail-amt ' + (u.kind === 'set' ? '' : ((u.delta || 0) >= 0 ? 'pos' : 'neg'));
+  big.textContent = u.kind === 'set' ? money(u.value || 0) : signed(u.delta || 0);
+  const meta = document.createElement('p'); meta.className = 'detail-meta';
+  meta.textContent = 'Made on this phone and not sent to Firebase yet.';
+  const rm = document.createElement('button'); rm.type = 'button'; rm.className = 'btn danger';
+  rm.textContent = 'Remove this change';
+  rm.addEventListener('click', () => { closeSheet(); removeUnsent(u.id); });
+  body.append(big, meta, rm);
+  onOk = closeSheet;
+  showSheet(label(u), 'Done', {single:true});
+}
+
+/* Calculator: opens from the calculator button */
+function openCalculator(){
+  if (balance === null) return;
+  const body = $('#sheetBody'); body.textContent = '';
+  const display = document.createElement('input');
+  display.className = 'amount-in'; display.inputMode = 'decimal'; display.autocomplete = 'off';
+  display.placeholder = '0';
+  const result = document.createElement('p'); result.className = 'calc-result'; result.setAttribute('aria-live', 'polite');
+  const pad = document.createElement('div'); pad.className = 'calc';
+  const okBtn = $('#sheetOk');
+
+  const upd = () => {
+    const c = evalExpr(display.value);
+    display.classList.toggle('expr', hasOperator(display.value));
+    if (c === null) result.textContent = '';
+    else if (c === balance) result.textContent = '= ' + money(c) + ', the same as the current balance';
+    else result.textContent = '= ' + money(c);
+    okBtn.disabled = c === null || c === balance;
+  };
+  const key = (text, aria, action, cls) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = text; b.setAttribute('aria-label', aria);
+    if (cls) b.className = cls;
+    b.addEventListener('mousedown', e => e.preventDefault()); // keeps the keyboard open
+    b.addEventListener('click', () => {
+      action(); upd();
+      display.focus({preventScroll:true});
+      const end = display.value.length; try { display.setSelectionRange(end, end); } catch(e){}
+    });
+    pad.append(b);
+    return b;
+  };
+  const endsWithOperator = v => /[+\-−]\s*$/.test(v);
+  const addOp = op => {
+    const v = display.value.replace(/\s*[+\-−]\s*$/, '');   // replace an operator already at the end
+    display.value = v.trim() ? v.trimEnd() + ' ' + op + ' ' : (op === '−' ? '−' : '');
+  };
+
+  key('+', 'Add', () => addOp('+'));
+  key('−', 'Subtract', () => addOp('−'));
+  key('÷ 2', 'Divide by 2', () => {
+    const c = evalExpr(display.value);
+    if (c !== null) display.value = plain(Math.round(c / 2));
+  });
+  key('C', 'Clear', () => { display.value = ''; });
+  // Copies the current balance into the calculator: added after an operator,
+  // otherwise it replaces what's there (like starting a new sum).
+  const balBtn = key('Use current balance', 'Insert the current balance', () => {
+    const v = display.value;
+    display.value = (v.trim() && endsWithOperator(v)) ? v + plain(balance) : plain(balance);
+  }, 'wide');
+  const amtSpan = document.createElement('span'); amtSpan.textContent = money(balance); balBtn.append(amtSpan);
+
+  display.addEventListener('input', upd);
+  display.addEventListener('keydown', e => { if (e.key === 'Enter' && !okBtn.disabled){ e.preventDefault(); onOk(); } });
+  body.append(field('Calculation', display, true), result, pad);
+
+  // Copies the result into the balance on this phone. Tap "Send to Firebase" to share it.
+  onOk = () => {
+    const c = evalExpr(display.value);
+    if (c === null || c === balance) return;
+    closeSheet();
+    setTo(c, 'Set with calculator');
+  };
+  showSheet('Calculator', 'Copy to balance', {disabled:true, focus:display});
+}
+
+/* Settings: this phone's name, sign out */
+function openSettings(){
+  const body = $('#sheetBody'); body.textContent = '';
+  const p = document.createElement('p'); p.className = 'hint';
+  p.textContent = 'Signed in as ' + ((auth.currentUser && auth.currentUser.email) || '') + '.';
+  const name = document.createElement('input'); name.className = 'txt'; name.maxLength = 30; name.value = deviceName;
+  const out = document.createElement('button'); out.type = 'button'; out.className = 'btn danger'; out.textContent = 'Sign out';
+  out.addEventListener('click', () => { closeSheet(); signOut(auth); });
+  body.append(p, field('This phone’s name in the history', name), out);
+  const okBtn = $('#sheetOk');
+  name.addEventListener('input', () => { okBtn.disabled = !name.value.trim(); });
+  onOk = () => {
+    const v = name.value.trim().slice(0, 30); if (!v) return;
+    deviceName = v; localStorage.setItem('deviceName', v);
+    closeSheet(); toast('Saved. New changes from this phone show “' + v + '”.');
+  };
+  showSheet('Settings', 'Save', {focus:null});
+}
+
+$('#btnIn').addEventListener('click', () => openAmount('in'));
+$('#btnOut').addEventListener('click', () => openAmount('out'));
+$('#total').addEventListener('click', () => openAmount('set'));
+$('#btnCalc').addEventListener('click', openCalculator);
+$('#btnSend').addEventListener('click', sendUnsent);
+$('#btnDiscard').addEventListener('click', discardUnsent);
+$('#title').addEventListener('click', openSettings);
+
+/* ---------- 10. Install as an app (service worker) ---------- */
+if ('serviceWorker' in navigator){
+  navigator.serviceWorker.register('./sw.js', {updateViaCache:'none'}).catch(() => {});
+}
+</script>
+</body>
+</html>
