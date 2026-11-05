@@ -11,22 +11,16 @@ window.APP_CONFIG = {
   //  Firebase console > Project settings (gear icon) > General >
   //  "Your apps" > your web app > "SDK setup and configuration" > Config.
   //  Copy each value from there into the matching line below.
-  //
-  //  databaseURL is shown only after you have created the
-  //  Realtime Database. If it is missing from the snippet, copy it
-  //  from the top of the Realtime Database > Data page instead.
-  //  It looks like: https://xxxx-default-rtdb.europe-west1.firebasedatabase.app
   // ---------------------------------------------------------------
-firebase = {
-  apiKey: "AIzaSyBMYA3HK1h91pcZG9GlatwgvmCf-5kss1o",
-  authDomain: "expenses-tracker-70a00.firebaseapp.com",
-  databaseURL: "https://expenses-tracker-70a00-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "expenses-tracker-70a00",
-  storageBucket: "expenses-tracker-70a00.firebasestorage.app",
-  messagingSenderId: "554495557896",
-  appId: "1:554495557896:web:d95d7c67a419fd97b9ecbd"
-};
-
+  firebase: {
+    apiKey:            "AIzaSyBMYA3HK1h91pcZG9GlatwgvmCf-5kss1o",
+    authDomain:        "expenses-tracker-70a00.firebaseapp.com",
+    databaseURL:       "https://expenses-tracker-70a00-default-rtdb.europe-west1.firebasedatabase.app",
+    projectId:         "expenses-tracker-70a00",
+    storageBucket:     "expenses-tracker-70a00.firebasestorage.app",
+    messagingSenderId: "554495557896",
+    appId:             "1:554495557896:web:d95d7c67a419fd97b9ecbd",
+  },
 
   // ---------------------------------------------------------------
   //  2. APP
