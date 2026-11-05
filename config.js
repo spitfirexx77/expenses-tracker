@@ -17,15 +17,16 @@ window.APP_CONFIG = {
   //  from the top of the Realtime Database > Data page instead.
   //  It looks like: https://xxxx-default-rtdb.europe-west1.firebasedatabase.app
   // ---------------------------------------------------------------
-  firebase: {
-    apiKey:            "PASTE_API_KEY_HERE",
-    authDomain:        "PASTE_PROJECT_ID.firebaseapp.com",
-    databaseURL:       "PASTE_DATABASE_URL_HERE",
-    projectId:         "PASTE_PROJECT_ID",
-    storageBucket:     "PASTE_PROJECT_ID.firebasestorage.app",
-    messagingSenderId: "PASTE_SENDER_ID",
-    appId:             "PASTE_APP_ID",
-  },
+firebase = {
+  apiKey: "AIzaSyBMYA3HK1h91pcZG9GlatwgvmCf-5kss1o",
+  authDomain: "expenses-tracker-70a00.firebaseapp.com",
+  databaseURL: "https://expenses-tracker-70a00-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "expenses-tracker-70a00",
+  storageBucket: "expenses-tracker-70a00.firebasestorage.app",
+  messagingSenderId: "554495557896",
+  appId: "1:554495557896:web:d95d7c67a419fd97b9ecbd"
+};
+
 
   // ---------------------------------------------------------------
   //  2. APP
